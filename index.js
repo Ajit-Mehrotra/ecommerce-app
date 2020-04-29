@@ -1,9 +1,18 @@
 const express = require("express");
-
+const bodyParser = require("body-parser");
+const cookieSession = require("cookie-session");
+const usersRepo = require("./repositories/users");
 const app = express();
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(
+  cookieSession({
+    keys: ["lskjd2lfsak"],
+  })
+);
 
 app.get("/", (req, res) => {
   res.send(`<div>
+  Your id is ${req.session.userId}
   <form method="POST">
   <input name="email" placeholder="email"/>
   <input name="password" placeholder="password"/>
@@ -13,18 +22,22 @@ app.get("/", (req, res) => {
   </div>`);
 });
 
-app.post("/", (req, res) => {
-  req.on("data", (data) => {
-    const parsed = data.toString("utf8").split("&");
-    const formData = {};
-    for (let pair of parsed) {
-      const [key, value] = pair.split("=");
-      formData[key] = value;
-    }
+app.post("/", async (req, res) => {
+  const { email, password, passwordConfirmation } = req.body;
+  const existingUser = await usersRepo.getOneBy({ email });
 
-    console.log(formData);
-  });
+  if (existingUser) {
+    return res.send("Email in use");
+  }
+  if (password != passwordConfirmation) {
+    return res.send("Passwords must match");
+  }
 
+  //create a user in our repo to represent this person
+  const user = await usersRepo.create({ email, password });
+
+  //store id of that user inside the user cookie
+  req.session.userId = user.id; //Added to req by cookie session
   res.send("account created");
 });
 app.listen(3000, () => {
